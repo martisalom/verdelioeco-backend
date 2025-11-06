@@ -1,0 +1,45 @@
+# ==============================================
+# 👇 Archivos y carpetas que no deben subirse
+# ==============================================
+
+# Dependencias y builds
+target/
+bin/
+build/
+out/
+
+# Archivos temporales del sistema
+*.log
+*.tmp
+*.swp
+*.bak
+*.class
+
+# Configuración de IDEs (VSCode, IntelliJ, Eclipse)
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+*.project
+*.classpath
+*.settings/
+
+# Archivos de entorno y claves privadas
+.env
+*.env
+.env.*
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos Maven y wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# Archivos de Docker temporales
+*.pid
+*.seed
