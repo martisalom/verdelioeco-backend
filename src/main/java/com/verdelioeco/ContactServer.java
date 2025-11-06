@@ -1,25 +1,43 @@
 package com.verdelioeco;
 
-import static spark.Spark.*;
 import java.util.Properties;
-import javax.mail.*;
-import javax.mail.internet.*;
+
+import javax.mail.Authenticator;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.PasswordAuthentication;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
+
 import io.github.cdimascio.dotenv.Dotenv;
+import static spark.Spark.before;
+import static spark.Spark.options;
+import static spark.Spark.port;
+import static spark.Spark.post;
 
 public class ContactServer {
 
     public static void main(String[] args) {
 
-        // Cargar variables de entorno (.env)
-        Dotenv dotenv = Dotenv.load();
-        String emailUser = dotenv.get("EMAIL_USER");
-        String emailPass = dotenv.get("EMAIL_PASS");
+        // Cargar variables de entorno (.env) o del entorno Render
+        Dotenv dotenv = null;
+        try {
+            dotenv = Dotenv.load();
+        } catch (Exception e) {
+            System.out.println("⚠️ No se encontró archivo .env (usando variables de entorno del servidor)");
+        }
 
-        // ✅ Configurar el puerto ANTES de definir las rutas
-        port(4567);
-        System.out.println("Servidor corriendo en http://localhost:4567");
+        String emailUser = getenvOrDotenv(dotenv, "EMAIL_USER");
+        String emailPass = getenvOrDotenv(dotenv, "EMAIL_PASS");
+        String recipientEmail = getenvOrDotenv(dotenv, "RECIPIENT_EMAIL", emailUser);
 
-        // Permitir CORS
+        // ✅ Configurar puerto dinámico (Render lo asigna automáticamente)
+        port(Integer.parseInt(System.getenv().getOrDefault("PORT", "4567")));
+        System.out.println("Servidor corriendo en puerto " + System.getenv().getOrDefault("PORT", "4567"));
+
+        // CORS
         before((req, res) -> {
             res.header("Access-Control-Allow-Origin", "*");
             res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -28,11 +46,16 @@ public class ContactServer {
 
         options("/*", (req, res) -> "OK");
 
-        // Ruta principal para enviar el correo
+        // Endpoint de envío
         post("/send", (req, res) -> {
             String name = req.queryParams("name");
             String email = req.queryParams("email");
             String message = req.queryParams("message");
+
+            if (name == null || email == null || message == null) {
+                res.status(400);
+                return "❌ Faltan campos obligatorios.";
+            }
 
             Properties props = new Properties();
             props.put("mail.smtp.auth", "true");
@@ -49,12 +72,11 @@ public class ContactServer {
             try {
                 Message mimeMessage = new MimeMessage(session);
                 mimeMessage.setFrom(new InternetAddress(emailUser));
-                mimeMessage.setRecipients(Message.RecipientType.TO, InternetAddress.parse(emailUser));
+                mimeMessage.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
                 mimeMessage.setSubject("Nuevo mensaje de contacto de " + name);
                 mimeMessage.setText("De: " + name + "\nEmail: " + email + "\n\nMensaje:\n" + message);
 
                 Transport.send(mimeMessage);
-
                 res.status(200);
                 return "✅ Mensaje enviado correctamente.";
             } catch (MessagingException e) {
@@ -63,5 +85,18 @@ public class ContactServer {
                 return "❌ Error al enviar el mensaje: " + e.getMessage();
             }
         });
+    }
+
+    // Método auxiliar para obtener variables
+    private static String getenvOrDotenv(Dotenv dotenv, String key) {
+        return getenvOrDotenv(dotenv, key, null);
+    }
+
+    private static String getenvOrDotenv(Dotenv dotenv, String key, String defaultValue) {
+        String value = System.getenv(key);
+        if (value == null && dotenv != null) {
+            value = dotenv.get(key);
+        }
+        return value != null ? value : defaultValue;
     }
 }
